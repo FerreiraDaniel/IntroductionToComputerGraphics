@@ -7,7 +7,38 @@
 #include <vecmath.h>
 using namespace std;
 
+struct Face {
+    unsigned a,b,c,d,e,f,g,h,i;
+
+    Face(
+        vector<unsigned> point1, 
+        vector<unsigned> point2,
+        vector<unsigned> point3) {
+            a = point1[0];
+            b = point1[1];
+            c = point1[2];
+            d = point2[0];
+            e = point2[1];
+            f = point2[2];
+            g = point3[0];
+            h = point3[1];
+            i = point3[2];
+        }
+
+    void draw(vector<Vector3f> vecv, vector<Vector3f> vecn) {
+        glNormal3d(vecn[c-1][0], vecn[c-1][1], vecn[c-1][2]);
+        glVertex3d(vecv[a-1][0], vecv[a-1][1], vecv[a-1][2]);
+        glNormal3d(vecn[f-1][0], vecn[f-1][1], vecn[f-1][2]);
+        glVertex3d(vecv[d-1][0], vecv[d-1][1], vecv[d-1][2]);
+        glNormal3d(vecn[i-1][0], vecn[i-1][1], vecn[i-1][2]);
+        glVertex3d(vecv[g-1][0], vecv[g-1][1], vecv[g-1][2]);
+
+    }
+};
+
 // Globals
+const char Space = ' ';
+const char Slash = '/';
 
 // This is the list of points (3D vectors)
 vector<Vector3f> vecv;
@@ -16,7 +47,7 @@ vector<Vector3f> vecv;
 vector<Vector3f> vecn;
 
 // This is the list of faces (indices into vecv and vecn)
-vector<vector<unsigned> > vecf;
+vector<Face> vecf;
 
 int colorIndex = 0;
 float lightXOffset, lightYOffset = 0.0f;
@@ -89,10 +120,19 @@ void specialFunc(int key, int x, int y)
     glutPostRedisplay();
 }
 
+void drawShape()
+{
+    glBegin(GL_TRIANGLES);
+    for (auto &face : vecf) // access by reference to avoid copying
+    {  
+        face.draw(vecv, vecn);
+    }
+    glEnd();
+}
+
 // This function is responsible for displaying the object.
 void drawScene(void)
 {
-    int i;
 
     // Clear the rendering window
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -140,7 +180,8 @@ void drawScene(void)
 
     // This GLUT method draws a teapot.  You should replace
     // it with code which draws the object you loaded.
-    glutSolidTeapot(1.0);
+    drawShape();
+    
 
     // Dump the image to the screen.
     glutSwapBuffers();
@@ -154,9 +195,7 @@ void initRendering()
     glEnable(GL_LIGHT0);     // Turn on light #0.
 }
 
-// Called when the window is resized
-// w, h - width and height of the window in pixels.
-void reshapeFunc(int w, int h)
+void setViewPort(int w, int h)
 {
     // Always use the largest square viewport possible
     if (w > h)
@@ -167,6 +206,13 @@ void reshapeFunc(int w, int h)
     {
         glViewport(0, (h - w) / 2, w, w);
     }
+}
+
+// Called when the window is resized
+// w, h - width and height of the window in pixels.
+void reshapeFunc(int w, int h)
+{
+    setViewPort(w, h);
 
     // Set up a perspective view, with square aspect ratio
     glMatrixMode(GL_PROJECTION);
@@ -175,16 +221,169 @@ void reshapeFunc(int w, int h)
     gluPerspective(50.0, 1.0, 1.0, 100.0);
 }
 
-void loadInput()
+Vector3f createVertice(string xCoordinateString, string yCoordinateString, string zCoordinateString)
 {
-    // load the OBJ file here
+    float xCoordinate = stof(xCoordinateString);
+    float yCoordinate = stof(yCoordinateString);
+    float zCoordinate = stof(zCoordinateString);
+    Vector3f newVertice(xCoordinate, yCoordinate, zCoordinate);
+    return newVertice;
+}
+
+Vector3f createVertice(string data)
+{
+    size_t indexOfSpace = data.find(Space);
+    string xCoordinateString = data.substr(0, indexOfSpace);
+    string yzString = data.substr(indexOfSpace + 1);
+    size_t index2OfSpace = yzString.find(Space);
+    string yCoordinateString = yzString.substr(0, index2OfSpace);
+    string zCoordinateString = yzString.substr(index2OfSpace + 1);
+    Vector3f newVertice = createVertice(xCoordinateString, yCoordinateString, zCoordinateString);
+    return newVertice;
+}
+
+void parseVertice(string data) {
+    Vector3f newVertice = createVertice(data);
+    vecv.push_back(newVertice);
+}
+
+void parseNormal(string data)
+{
+    Vector3f newVertice = createVertice(data);
+    vecn.push_back(newVertice);
+}
+
+vector<unsigned> createFacePoint(string data) {
+    size_t indexOfSlash = data.find(Slash);
+    size_t indexOfSlash2 = data.find_last_of(Slash);
+    string index1String = data.substr(0, indexOfSlash);
+    string index2String = data.substr(indexOfSlash + 1, indexOfSlash2 - indexOfSlash - 1);
+    string index3String = data.substr(indexOfSlash2 + 1);
+    unsigned index1 = stoi(index1String);
+    unsigned index2 = stoi(index2String);
+    unsigned index3 = stoi(index3String);
+
+    vector<unsigned> newPoint;
+ 
+    newPoint.push_back(index1);
+    newPoint.push_back(index2);
+    newPoint.push_back(index3);
+
+    return newPoint;
+}
+
+Face parseFace(string data)
+{
+    size_t indexOfSpace = data.find(Space);
+    size_t indexOfSpace2 = data.find_last_of(Space);
+    string point1String = data.substr(0, indexOfSpace);
+    string point2String = data.substr(indexOfSpace + 1, indexOfSpace2 - indexOfSpace - 1);
+    string point3String = data.substr(indexOfSpace2 + 1);
+    vector<unsigned> point1 = createFacePoint(point1String);
+    vector<unsigned> point2 = createFacePoint(point2String);
+    vector<unsigned> point3 = createFacePoint(point3String);
+    Face newFace(point1, point2, point3);
+    return newFace;
+}
+
+void parseLine(string line)
+{
+    size_t lineLength = line.length();
+    bool lineTooSmall = lineLength <= 1;
+    if (lineTooSmall)
+    {
+        return;
+    }
+    size_t indexOfSpace = line.find(Space);
+
+    string prefix = line.substr(0, indexOfSpace);
+    string data = line.substr(indexOfSpace + 1);
+    bool isAVertice = prefix == "v";
+    bool isANormal = prefix == "vn";
+    bool isAFace = prefix == "f";
+    if (isAVertice)
+    {
+        parseVertice(data);
+    }
+    else
+    {
+        if (isANormal)
+        {
+            parseNormal(data);
+        }
+        else
+        {
+            if (isAFace)
+            {
+                Face newFace = parseFace(data);
+                vecf.push_back(newFace);
+            }
+            else
+            {
+                cout << "Type o line is unknown line: " << line << "\n";
+            }
+        }
+    }
+}
+
+void readModel(FILE *filePointer)
+{
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    while ((read = getline(&line, &len, filePointer)) != -1)
+    {
+        string lineString(line);
+        parseLine(lineString);
+    }
+    if (line)
+    {
+        free(line);
+    }
+}
+
+void loadInput(char *fileName)
+{
+    FILE *filePointer = fopen(fileName, "r");
+    bool couldNotFindFile = filePointer == NULL;
+    if (couldNotFindFile)
+    {
+        cout << "Could not find the file " << fileName << "\n";
+        return;
+    }
+    readModel(filePointer);
+    fclose(filePointer);
+}
+
+char *getFileName(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        return NULL;
+    }
+    char *fileName = argv[1];
+    return fileName;
 }
 
 // Main routine.
 // Set up OpenGL, define the callbacks and start the main loop
 int main(int argc, char **argv)
 {
-    loadInput();
+    char *fileName = getFileName(argc, argv);
+    if (fileName)
+    {
+        string message("Is going to open the file:");
+        message.append(fileName);
+        cout << message << "\n";
+    }
+    else
+    {
+        cerr << "Impossible obtain fileName of the object \n";
+        cerr << "Sintax: a0 fileName.obj \n";
+        return 0;
+    }
+    loadInput(fileName);
 
     glutInit(&argc, argv);
 
