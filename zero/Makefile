@@ -1,4 +1,4 @@
-INCFLAGS = -I /usr/local/include/vecmath
+INCFLAGS = -I /usr/local/include/vecmath -I /opt/homebrew/include
 
 LINKFLAGS  = -framework OpenGL
 LINKFLAGS += -framework GLUT
